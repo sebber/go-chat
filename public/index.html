@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Hello React</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+    <link href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css" rel="stylesheet">
+
+    <script src="http://fb.me/react-0.12.2.js"></script>
+    <script src="http://fb.me/JSXTransformer-0.12.2.js"></script>
+    <script src="http://code.jquery.com/jquery-1.10.0.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/showdown/0.3.1/showdown.min.js"></script>
+  </head>
+  <body>
+    <div id="content" class="container-fluid"></div>
+
+    <script type="text/jsx">
+      var converter = new Showdown.converter();
+
+      var Comment = React.createClass({
+        render: function() {
+          var rawMarkup = converter.makeHtml(this.props.children.toString());
+
+          return (
+            <div className="comment media">
+              <div className="media-body">
+                <h4 className="commentAuthor media-heading">
+                  {this.props.author}
+                </h4>
+                <span dangerouslySetInnerHTML={{__html: rawMarkup}} />
+              </div>
+            </div>
+          );
+        }
+      });
+
+      var CommentList = React.createClass({
+        render: function() {
+            var commentNodes = this.props.data.map(function (comment) {
+            return (
+              <Comment author={comment.author}>
+                {comment.text}
+              </Comment>
+            );
+          });
+
+          return (
+            <div className="commentList well">
+              {commentNodes}
+            </div>
+          );
+        }
+      });
+
+      var CommentForm = React.createClass({
+        handleSubmit: function(e) {
+          e.preventDefault();
+          var author = this.refs.author.getDOMNode().value.trim();
+          var text = this.refs.text.getDOMNode().value.trim();
+          if(!text || !author) {
+            return;
+          }
+
+          this.props.onCommentSubmit({author: author, text: text});
+          //this.refs.author.getDOMNode().value = '';
+          this.refs.text.getDOMNode().value = '';
+          return;
+        },
+        render: function() {
+          return (
+            <form className="commentForm" onSubmit={this.handleSubmit}>
+
+              <div className="form-group">
+                <input className="form-control" type="text" placeholder="Your name" ref="author" />
+              </div>
+              <div className="form-group">
+                <input className="form-control" type="text" placeholder="Say something..." ref="text" />
+              </div>
+
+
+              <button type="submit" className="btn btn-primary">Post</button>
+
+            </form>
+          );
+        }
+      });
+
+      var CommentBox = React.createClass({
+        loadCommentsFromServer: function() {
+          $.ajax({
+            url: this.props.url,
+            dataType: 'json',
+            success: function(data) {
+              this.setState({data: data});
+            }.bind(this),
+            error:function(xhr, status, err) {
+              console.error(this.props.url, status, err.toString());
+            }.bind(this)
+          });
+        },
+
+        handleCommentSubmit: function(comment) {
+          var comments = this.state.data;
+          var newComments = [comment].concat(comments);
+          this.setState({data: newComments});
+
+          $.ajax({
+            url: this.props.url,
+            dataType: 'json',
+            type: 'POST',
+            contentType: 'application/json; charset=utf-8',
+            data: JSON.stringify(comment),
+            success: function(data) {
+              this.setState({data: data});
+            }.bind(this),
+            error: function(xhr, status, err) {
+              console.error(this.props.url, status, err.toString());
+            }.bind(this)
+          });
+        },
+
+        getInitialState: function() {
+          return {data: []};
+        },
+
+        componentDidMount: function() {
+          this.loadCommentsFromServer();
+          setInterval(this.loadCommentsFromServer, this.props.pollInterval)
+        },
+
+        render: function() {
+          return (
+            <div className="commentBox row">
+              <div className="col-xs-12">
+                <h1 className="page-header">{'Sebber\'s go-chat'}</h1>
+                <CommentList data={this.state.data} />
+                <CommentForm onCommentSubmit={this.handleCommentSubmit} />
+              </div>
+            </div>
+          );
+        }
+      });
+
+      React.render(
+        <CommentBox url="/api/messages" pollInterval={1000}/>,
+        document.getElementById('content')
+      );
+    </script>
+
+
+    <style>
+      .commentList {
+        max-height: 700px;
+        overflow-x: scroll;
+      }
+    </style>
+  </body>
+</html>
